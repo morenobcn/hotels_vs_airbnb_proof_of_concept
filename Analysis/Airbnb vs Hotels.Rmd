@@ -1,0 +1,205 @@
+---
+title: "Airbnb vs Hotels"
+author: "Nacho Moreno"
+date: "5 August 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Histograms of Airbnb and hotels prices
+
+First we need to delete outliers
+
+
+```{r airbnb and Hotels, warning=FALSE}
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(magrittr)
+library(PerformanceAnalytics)
+
+########
+##Airbnb Dataset
+########
+
+airbnb <- read_csv('./data/Airbnb_for_analysis.csv')
+
+#Lets filter the outliers for the airbnb and plot the histogram
+
+airbnb_filtered <- airbnb %>%
+  filter(price != 0) %>%
+  filter(between(price,(mean(price)-(3*StdDev(price))),(mean(price)+(3*StdDev(price))))) %>%
+  filter(between(accommodates, 1, 3))
+
+write_csv(airbnb_filtered, './data/Airbnb_to_map.csv')
+
+########
+##Hotels dataset
+########
+
+hotels <- read_csv('./data/Hotels Merged Enriched.csv')
+
+hotels_filtered <- hotels %>%
+  filter(between(hotels$`Price (USD)`,(mean(hotels$`Price (USD)`, na.rm=TRUE)-(3*StdDev(hotels$`Price (USD)`, na.rm=TRUE))),(mean(hotels$`Price (USD)`, na.rm=TRUE)+(3*StdDev(hotels$`Price (USD)`, na.rm=TRUE)))))
+
+```
+
+Lets do a combination chart so we compare next to each other
+
+```{r combination chart}
+
+airbnb_prices <- airbnb_filtered %>%
+  select('price','property_type') %>%
+  mutate('property_type' = c('Airbnb')) %>%
+  rename('Price (USD)' = 'price', 'Type' = 'property_type')
+
+h_prices <- hotels_filtered %>%
+  select('Price (USD)','Hotel Name') %>%
+  mutate('Hotel Name' = c('Hotel')) %>%
+  rename('Type' = 'Hotel Name')
+
+prices <- rbind(h_prices, airbnb_prices)
+
+#summary(prices)
+
+hist_prices <- ggplot(data = prices, aes(x= prices$`Price (USD)`, fill = prices$Type, stat(density))) +
+  geom_histogram(binwidth=10) +
+  scale_fill_manual(values=c("#E30613",  "#000000")) +
+  theme_minimal()+
+  theme(legend.title=element_blank())+
+  coord_cartesian(xlim=c(0,400))+
+  labs(title='Airbnb vs Hotels price distribution', y='Ratio total of propeties', x='Price per night (USD)')
+
+hist_prices_plotly <- ggplotly(hist_prices) 
+
+#for being able to upload the graphs to plotly
+Sys.setenv("plotly_username"="natxomoreno")
+Sys.setenv("plotly_api_key"="FUB7h2j9TcTcXLl7ak7D")
+
+#we upload to the web
+api_create(hist_prices_plotly, filename = "Airbnb Prices Histogram")
+
+
+```
+
+
+Let's do a boxplot of hotels and prices
+
+```{r boxplot for hotels prices}
+
+library(plotly)
+
+no_null_star_rating <- hotels_filtered %>%
+  filter(!is.na(hotels_filtered$`Stars Rating`))
+  
+
+hotels_boxplot <- ggplot(data = no_null_star_rating, aes(y= no_null_star_rating$`Price (USD)`, x = no_null_star_rating$`Stars Rating Categories`)) +
+  geom_boxplot(fill='#E30613', color="darkred", outlier.size = 0.5) +
+  theme_minimal() +
+  labs(title='Distribution of prices by star rating', y='Price per night (USD)', x='Star Rating', caption='Data from tripadvisor.com')
+
+hotels_boxplot_plotly <- ggplotly(hotels_boxplot)
+
+#for being able to upload the graphs to plotly
+Sys.setenv("plotly_username"="natxomoreno")
+Sys.setenv("plotly_api_key"="FUB7h2j9TcTcXLl7ak7D")
+
+#we upload to the web
+api_create(hotels_boxplot_plotly, filename = "Barcelona Hotels Prices")
+
+
+```
+
+3d Map to show the hotels distribution
+
+```{r 3d map}
+
+
+
+```
+
+Geogrpahical Nearest Neighbour
+
+```{r nearest neighbour}
+
+library(nngeo) #this library requires the inputs to be in spatial data frame format
+library(sp)
+library(spdep)
+
+# Create the SF with both datasets, this is the input needed by the package nngeo as inputs
+hotels_sf = st_as_sf(hotels_filtered, coords = c("x", "y"), crs = 4326, agr = "constant")
+airbnb_sf = st_as_sf(airbnb_filtered, coords = c("longitude", "latitude"), crs = 4326, agr = "constant")
+
+
+#Now we run the Nearest Neighbout algorithm to find the 20 nearest airbnbs to each hotel
+nearest_20 = st_nn(hotels_sf, airbnb_sf, k = 20, maxdist=500, progress = FALSE)
+#for visualization purposes we will also compute the lines
+lines_nearest = st_connect(hotels_sf, airbnb_sf, ids = nearest_20, progress = FALSE)
+
+#Lets export this layer so we can add it ot the map
+st_write(lines_nearest, "./data/lines_nearest.shp")
+
+#Get the average price of all the airbnbs nearest to that one
+
+nearest_20_results = as.data.frame(as.matrix(nearest_20))
+
+
+#Now we iterate thorugh the data frame nearest results,that matrix has a lists of numbers
+#corresponding to the nearest neighbours, so we need a double loop first for inside each row of
+#the matrix that gives us all the nearest 20 neightbours and then thoughs all teh rows that match
+#to an hotel
+
+j = 1
+final_price = data.frame(Price=0) #empty dataframe with one column where we will be saving the airbnb prices
+for (j in 1:nrow(nearest_20_results)){
+  i = 1
+  total_price = 0
+  for(i in 1:20){
+    #this is the complex bit, a matter of navigating through the df until getting the result
+    price = airbnb_filtered[unlist(nearest_20_results[,1][j])[i],'price'] 
+    total_price = total_price+price
+    i = i +1}
+  
+  final_price[j,] = rbind(c(total_price)) #we keep adding rows to the df
+  j = j +1}
+  
+
+
+
+#we will join by index so lets first save the index as a column
+hotels_filtered <- cbind(row_index = rownames(hotels_filtered), hotels_filtered)
+final_price <- cbind(row_index = rownames(final_price), final_price)
+
+#and we do the merge
+hotels_with_airbnb <- merge(hotels_filtered, final_price, by='row_index')
+
+hotels_with_airbnb <- hotels_with_airbnb %>%
+  filter(!is.na('Price')) %>%
+  mutate(Price = Price/20) %>%
+  mutate(Difference_Airbnb = `Price (USD)`- Price ) %>%
+  rename('Airbnb Price' = 'Price')
+  
+
+##Final dataset export for Python adn Maps
+write_csv(hotels_with_airbnb, 'Hotels_to_Map.csv')
+
+
+#Just to visualize the data
+library(leaflet)
+
+
+lines_nearest  %>% 
+  
+  leaflet(options = leafletOptions(preferCanvas = TRUE)) %>%
+  addProviderTiles(providers$CartoDB.DarkMatterNoLabels) %>%
+  #addCircleMarkers()
+  addPolygons()
+
+
+
+
+```
+
