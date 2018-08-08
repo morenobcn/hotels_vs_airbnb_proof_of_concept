@@ -11,3 +11,5 @@ Analysis folder where you can find the following:
 - Python notebook wiht part of the data cleansing and cartoframes interface.
 
 Finally in the blog-presentation a summary of the main findings.
+
+[Access the final result map here](https://natxnycdsa.carto.com/builder/ba31d107-86ce-4ccc-b32d-b7ca78b611bf/embed?)
