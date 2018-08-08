@@ -1,3 +1,10 @@
+[Read the Blog](https://nycdatascience.com/blog/student-works/web-scraping/hotels-vs-airbnb-barcelona-case-study-proof-of-concept/)
+
+
+[Access the final result map here](https://natxnycdsa.carto.com/builder/ba31d107-86ce-4ccc-b32d-b7ca78b611bf/embed?)
+
+
+
 ### Hotels vs Airbnb a case study: Barcelona (proof of concept)
 
 Within the Scraping folder you can find the two scraper I used for this project:
@@ -12,4 +19,4 @@ Analysis folder where you can find the following:
 
 Finally in the blog-presentation a summary of the main findings.
 
-[Access the final result map here](https://natxnycdsa.carto.com/builder/ba31d107-86ce-4ccc-b32d-b7ca78b611bf/embed?)
+
