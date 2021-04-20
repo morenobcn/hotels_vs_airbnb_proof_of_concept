@@ -126,7 +126,7 @@ post==1.0.2
 prompt-toolkit==1.0.15
 psutil==5.4.3
 public==1.0.3
-py==1.5.2
+py==1.10.0
 pyasn1==0.4.3
 pyasn1-modules==0.2.2
 pycodestyle==2.3.1
